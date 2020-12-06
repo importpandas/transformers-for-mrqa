@@ -47,21 +47,17 @@ from transformers.data.metrics.squad_metrics import (
     compute_predictions_logits,
     squad_evaluate,
 )
-from transformers.data.processors.squad import SquadResult, SquadV1Processor, SquadV2Processor
+from transformers.data.processors.mrqa import MrqaProcessor
 
+from transformers.data.processors.squad import SquadResult
 
 try:
     from torch.utils.tensorboard import SummaryWriter
 except ImportError:
     from tensorboardX import SummaryWriter
 
-from utils_distributed_training import get_oneNode_addr, dist_init, stats, modified_print
+from utils_distributed_training import get_oneNode_addr, dist_init, stats, xprint
 
-#print with flush=True and only print with args.local_rank=-1 or 0
-try:
-    xprint = functools.partial(modified_print, local_rank=int(os.environ['SLURM_PROCID']))
-except:
-    xprint = functools.partial(modified_print, local_rank=-1)
 
 logger = logging.getLogger(__name__)
 
@@ -439,7 +435,8 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
     input_dir = args.data_dir if args.data_dir else "."
     cached_features_file = os.path.join(
         input_dir,
-        "cached_{}_{}_{}".format(
+        "cached_{}_{}_{}_{}".format(
+            list(filter(None, args.predict_file.split(".") if evaluate else args.train_file.split("."))).pop(0),
             "dev" if evaluate else "train",
             list(filter(None, args.model_name_or_path.split("/"))).pop(),
             str(args.max_seq_length),
@@ -458,23 +455,11 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
     else:
         logger.info("Creating features from dataset file at %s", input_dir)
 
-        if not args.data_dir and ((evaluate and not args.predict_file) or (not evaluate and not args.train_file)):
-            try:
-                import tensorflow_datasets as tfds
-            except ImportError:
-                raise ImportError("If not data_dir is specified, tensorflow_datasets needs to be installed.")
-
-            if args.version_2_with_negative:
-                logger.warn("tensorflow_datasets does not handle version 2 of SQuAD.")
-
-            tfds_examples = tfds.load("squad")
-            examples = SquadV1Processor().get_examples_from_dataset(tfds_examples, evaluate=evaluate)
+        processor = MrqaProcessor()
+        if evaluate:
+            examples = processor.get_dev_examples(args.data_dir, args.predict_file)
         else:
-            processor = SquadV2Processor() if args.version_2_with_negative else SquadV1Processor()
-            if evaluate:
-                examples = processor.get_dev_examples(args.data_dir, filename=args.predict_file)
-            else:
-                examples = processor.get_train_examples(args.data_dir, filename=args.train_file)
+            examples = processor.get_train_examples(args.data_dir, args.train_file)
 
         features, dataset = squad_convert_examples_to_features(
             examples=examples,
@@ -561,7 +546,7 @@ def main():
         "--cache_dir",
         default="",
         type=str,
-        help="Where do you want to store the pre-trained models downloaded from s3",
+        help="Where do you ant to store the pre-trained models downloaded from s3",
     )
 
     parser.add_argument(
@@ -578,7 +563,7 @@ def main():
 
     parser.add_argument(
         "--max_seq_length",
-        default=384,
+        default=512,
         type=int,
         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
         "longer than this will be truncated, and sequences shorter than this will be padded.",

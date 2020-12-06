@@ -91,11 +91,11 @@ def squad_convert_example_to_features(example, max_seq_length, doc_stride, max_q
         end_position = example.end_position
 
         # If the answer cannot be found in the text, then skip this example.
-        actual_text = " ".join(example.doc_tokens[start_position : (end_position + 1)])
-        cleaned_answer_text = " ".join(whitespace_tokenize(example.answer_text))
-        if actual_text.find(cleaned_answer_text) == -1:
-            logger.warning("Could not find answer: '%s' vs. '%s'", actual_text, cleaned_answer_text)
-            return []
+        # actual_text = " ".join(example.doc_tokens[start_position : (end_position + 1)])
+        # cleaned_answer_text = " ".join(whitespace_tokenize(example.answer_text))
+        # if actual_text.find(cleaned_answer_text) == -1:
+        #     logger.warning("Could not find answer: '%s' vs. '%s'", actual_text, cleaned_answer_text)
+        #     return []
 
     tok_to_orig_index = []
     orig_to_tok_index = []

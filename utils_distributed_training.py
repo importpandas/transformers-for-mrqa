@@ -61,5 +61,8 @@ def modified_print(*args, local_rank=-1 ,**kargs):
         print(*args,flush=True,**kargs)
 
 #print with flush=True and only print with args.local_rank=-1 or 0
-#xprint = functools.partial(modified_print,local_rank=int(os.environ['SLURM_PROCID']))
+try:
+    xprint = functools.partial(modified_print, local_rank=int(os.environ['SLURM_PROCID']))
+except:
+    xprint = functools.partial(modified_print, local_rank=-1)
 
