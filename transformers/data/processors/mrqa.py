@@ -56,7 +56,12 @@ class MrqaExample(object):
         self.is_impossible = is_impossible
         self.answers = answers
 
-        self.start_position, self.end_position = answer_position_token[0], answer_position_token[1]
+        if answer_position_token is not None and not is_impossible:
+            self.start_position, self.end_position = answer_position_token[0], answer_position_token[1]
+        else:
+            self.start_position, self.end_position = 0, 0
+
+
 
         separate_tokens = ['[DOC]', '[TLE]', ['PAR']]
         char_to_word_offset = []
@@ -69,12 +74,13 @@ class MrqaExample(object):
                 for _ in range(len(self.doc_tokens)):
                     char_to_word_offset.append(len(self.doc_tokens) - 1)
 
-        actual_text = "".join(context_tokens[self.start_position : (self.end_position + 1)])
-        cleaned_answer_text = "".join(whitespace_tokenize(self.answer_text))
-        global total_mismatch_num
-        if cleaned_answer_text.lower() not in actual_text.lower():
-            total_mismatch_num += 1
-            #print(f'total mismatch num {total_mismatch_num}')
+        if answer_text is not None:
+            actual_text = "".join(context_tokens[self.start_position : (self.end_position + 1)])
+            cleaned_answer_text = "".join(whitespace_tokenize(self.answer_text))
+            global total_mismatch_num
+            if cleaned_answer_text.lower() not in actual_text.lower():
+                total_mismatch_num += 1
+                # print(f'total mismatch num {total_mismatch_num}')
         assert char_to_word_offset[-1] == len(self.doc_tokens) - 1
 
         self.char_to_word_offset = char_to_word_offset
@@ -135,6 +141,7 @@ class MrqaProcessor(DataProcessor):
                 qas_id = qa["qid"]
                 question_text = qa["question"]
                 answer_text = None
+                answer_position_token = None
                 answers = []
 
                 if is_training:
