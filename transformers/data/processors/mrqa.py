@@ -64,15 +64,12 @@ class MrqaExample(object):
 
 
         separate_tokens = ['[DOC]', '[TLE]', ['PAR']]
-        char_to_word_offset = []
         for i, doc_token in enumerate(context_tokens):
             if doc_token in separate_tokens:
                 self.start_position = self.start_position - 1 if self.start_position > i else self.start_position
                 self.end_position = self.end_position - 1 if self.end_position >= i else self.end_position
             else:
                 self.doc_tokens.append(doc_token)
-                for _ in range(len(self.doc_tokens)):
-                    char_to_word_offset.append(len(self.doc_tokens) - 1)
 
         if answer_text is not None:
             actual_text = "".join(context_tokens[self.start_position : (self.end_position + 1)])
@@ -81,9 +78,6 @@ class MrqaExample(object):
             if cleaned_answer_text.lower() not in actual_text.lower():
                 total_mismatch_num += 1
                 # print(f'total mismatch num {total_mismatch_num}')
-        assert char_to_word_offset[-1] == len(self.doc_tokens) - 1
-
-        self.char_to_word_offset = char_to_word_offset
 
 
 class MrqaProcessor(DataProcessor):
@@ -104,12 +98,14 @@ class MrqaProcessor(DataProcessor):
 
         """
         input_data = []
+        examples = []
         with open(
             os.path.join(data_dir, filename), "r", encoding="utf-8"
         ) as reader:
             for line in reader:
-                input_data.append(json.loads(line))
-        return self._create_examples(input_data, "train")
+                entry = json.loads(line)
+                examples += self._create_example(entry, "train")
+        return examples
 
     def get_dev_examples(self, data_dir, filename=None):
         """
@@ -123,12 +119,48 @@ class MrqaProcessor(DataProcessor):
 
 
         input_data = []
+        examples = []
         with open(
             os.path.join(data_dir, filename), "r", encoding="utf-8"
         ) as reader:
             for line in reader:
-                input_data.append(json.loads(line))
-        return self._create_examples(input_data, "dev")
+                entry = json.loads(line)
+                examples += self._create_example(entry, "dev")
+        return examples
+
+    def _create_example(self, entry, set_type):
+        is_training = set_type == "train"
+        examples = []
+        if 'header' in entry:
+            return examples
+
+        context_tokens = [i[0] for i in entry["context_tokens"]]
+        for qa in entry["qas"]:
+            qas_id = qa["qid"]
+            question_text = qa["question"]
+            answer_text = None
+            answer_position_token = None
+            answers = []
+
+            if is_training:
+                answer = qa["detected_answers"][0]
+                answer_text = answer["text"]
+                answers = qa["answers"]
+                answer_position_token = sorted(answer['token_spans'], key=lambda x:x[0])[0]
+            else:
+                answers = qa["answers"]
+
+            example = MrqaExample(
+                qas_id=qas_id,
+                question_text=question_text,
+                context_tokens=context_tokens,
+                answer_text=answer_text,
+                answer_position_token=answer_position_token,
+                answers=answers,
+            )
+
+            examples.append(example)
+        return examples
 
     def _create_examples(self, input_data, set_type):
         is_training = set_type == "train"
@@ -136,31 +168,7 @@ class MrqaProcessor(DataProcessor):
         for entry in tqdm(input_data):
             if 'header' in entry:
                 continue
-            context_tokens = [i[0] for i in entry["context_tokens"]]
-            for qa in entry["qas"]:
-                qas_id = qa["qid"]
-                question_text = qa["question"]
-                answer_text = None
-                answer_position_token = None
-                answers = []
-
-                if is_training:
-                    answer = qa["detected_answers"][0]
-                    answer_text = answer["text"]
-                    answers = qa["answers"]
-                    answer_position_token = sorted(answer['token_spans'], key=lambda x:x[0])[0]
-                else:
-                    answers = qa["answers"]
-
-                example = MrqaExample(
-                    qas_id=qas_id,
-                    question_text=question_text,
-                    context_tokens=context_tokens,
-                    answer_text=answer_text,
-                    answer_position_token=answer_position_token,
-                    answers=answers,
-                )
-
-                examples.append(example)
+            entry_examples = self._create_example(self, entry, set_type)
+            examples += entry_examples
         print(f' all examples num: {len(examples)}')
         return examples

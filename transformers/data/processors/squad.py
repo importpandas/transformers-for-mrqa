@@ -223,9 +223,7 @@ def squad_convert_example_to_features(example, max_seq_length, doc_stride, max_q
                 out_of_span = True
 
             if out_of_span:
-                start_position = cls_index
-                end_position = cls_index
-                span_is_impossible = True
+                continue
             else:
                 if tokenizer.padding_side == "left":
                     doc_offset = 0
